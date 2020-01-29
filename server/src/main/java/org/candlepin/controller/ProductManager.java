@@ -282,6 +282,7 @@ public class ProductManager {
      * @return
      *  A mapping of Red Hat content ID to content entities representing the imported content
      */
+    @SuppressWarnings("checkstyle:methodlength")
     @Transactional
     @Traceable
     public ImportResult<Product> importProducts(@TraceableParam("owner") Owner owner,
@@ -424,6 +425,35 @@ public class ProductManager {
             // createdProducts map for this.
             updated.setUuid(null);
             stagedEntities.put(updated.getId(), updated);
+        }
+
+        // Replacing dummy products which were created earlier, with original
+        // provided products. These are expected to be present in one of three (updated, created, skipped)
+        // lists.
+        // For n-Tier support, stagedEntities map to be processed in order of depth.
+
+        for (Map.Entry<String, Product> prod : stagedEntities.entrySet()) {
+            if (prod.getValue().getProvidedProducts() != null) {
+                Set<Product> providedProducts = new HashSet<>();
+
+                for (Product providedProduct : prod.getValue().getProvidedProducts()) {
+                    Product processedProduct = createdProducts.get(providedProduct.getId());
+
+                    if (processedProduct == null) {
+                        processedProduct = updatedProducts.get(providedProduct.getId());
+                    }
+
+                    if (processedProduct == null) {
+                        processedProduct = skippedProducts.get(providedProduct.getId());
+                    }
+
+                    if (processedProduct != null) {
+                        providedProducts.add(processedProduct);
+                    }
+                }
+
+                prod.getValue().setProvidedProducts(providedProducts);
+            }
         }
 
         // Persist our staged entities
@@ -873,13 +903,12 @@ public class ProductManager {
         Collection<ProductDTO> providedProducts = dto.getProvidedProducts();
 
         if (providedProducts != null) {
-
             if (!Util.collectionsAreEqual(entity.getProvidedProducts().stream()
                 .map(Product::getId)
-                .collect(Collectors.toList()),
+                .collect(Collectors.toSet()),
                 providedProducts.stream()
                 .map(ProductDTO::getId)
-                .collect(Collectors.toList()))) {
+                .collect(Collectors.toSet()))) {
                 return true;
             }
         }
@@ -974,6 +1003,17 @@ public class ProductManager {
             Comparator<BrandingInfo> comparator = BrandingInfo.getBrandingInfoComparator();
             if (!Util.collectionsAreEqual((Collection) entity.getBranding(),
                 (Collection) update.getBranding(), comparator)) {
+                return true;
+            }
+        }
+
+        if (update.getProvidedProducts() != null) {
+            if (!Util.collectionsAreEqual(entity.getProvidedProducts().stream()
+                .map(Product::getId)
+                .collect(Collectors.toSet()),
+                update.getProvidedProducts().stream()
+                .map(ProductInfo::getId)
+                .collect(Collectors.toSet()))) {
                 return true;
             }
         }
@@ -1104,6 +1144,18 @@ public class ProductManager {
                     }
                 }
                 entity.setBranding(branding);
+            }
+        }
+
+        if (update.getProvidedProducts() != null && !update.getProvidedProducts().isEmpty()) {
+            entity.getProvidedProducts().clear();
+
+            // Adding dummy object reference of newly created product, this will later
+            // get replaced with original processed product during staging of entities.
+            for (ProductInfo pInfo : update.getProvidedProducts()) {
+                if (pInfo != null && pInfo.getId() != null) {
+                    entity.addProvidedProduct(new Product(pInfo.getId(), pInfo.getName()));
+                }
             }
         }
 

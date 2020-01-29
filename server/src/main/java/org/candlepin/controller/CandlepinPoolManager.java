@@ -957,54 +957,6 @@ public class CandlepinPoolManager implements PoolManager {
             pool.setDerivedProduct(product);
         }
 
-        if (sub.getProvidedProducts() != null) {
-            Set<Product> products = new HashSet<>();
-
-            for (ProductInfo pdata : sub.getProvidedProducts()) {
-                if (pdata != null) {
-                    product = productMap.get(pdata.getId());
-
-                    if (product == null) {
-                        throw new IllegalStateException("Subscription's provided products references a " +
-                            "product which cannot be resolved: " + pdata);
-                    }
-
-                    products.add(product);
-                }
-            }
-
-            pool.setProvidedProducts(products);
-            // TODO: workaround to pass import spec tests. we will revisit and update this in import and
-            // refresh code changes
-            if (pool.getProduct() != null) {
-                pool.getProduct().setProvidedProducts(products);
-            }
-        }
-
-        if (sub.getDerivedProvidedProducts() != null) {
-            Set<Product> products = new HashSet<>();
-
-            for (ProductInfo pdata : sub.getDerivedProvidedProducts()) {
-                if (pdata != null) {
-                    product = productMap.get(pdata.getId());
-
-                    if (product == null) {
-                        throw new IllegalStateException("Subscription's derived provided products " +
-                            "references a product which cannot be resolved: " + pdata);
-                    }
-
-                    products.add(product);
-                }
-            }
-
-            pool.setDerivedProvidedProducts(products);
-            // TODO: workaround to pass import spec tests. we will revisit and update this in import and
-            // refresh code changes
-            if (pool.getDerivedProduct() != null) {
-                pool.getDerivedProduct().setProvidedProducts(products);
-            }
-        }
-
         return pool;
     }
 
@@ -1038,14 +990,6 @@ public class CandlepinPoolManager implements PoolManager {
 
         productData.add(sub.getProduct());
         productData.add(sub.getDerivedProduct());
-
-        if (sub.getProvidedProducts() != null) {
-            productData.addAll(sub.getProvidedProducts());
-        }
-
-        if (sub.getDerivedProvidedProducts() != null) {
-            productData.addAll(sub.getDerivedProvidedProducts());
-        }
 
         for (ProductInfo pdata : productData) {
             if (pdata != null) {
@@ -1308,11 +1252,10 @@ public class CandlepinPoolManager implements PoolManager {
 
         // Bulk fetch our provided and derived provided product IDs so we're not hitting the DB
         // several times for this lookup.
-        Map<String, Set<String>> providedProductIds = this.poolCurator
-            .getProvidedProductIds(allOwnerPools);
+        Map<String, Set<String>> providedProductIds = getAllProvidedProductsFromPool(allOwnerPools);
 
-        Map<String, Set<String>> derivedProvidedProductIds = this.poolCurator
-            .getDerivedProvidedProductIds(allOwnerPools);
+        Map<String, Set<String>> derivedProvidedProductIds =
+            getAllDerivedProvidedProductsFromPool(allOwnerPools);
 
         for (Pool pool : allOwnerPools) {
             boolean providesProduct = false;
@@ -1432,6 +1375,44 @@ public class CandlepinPoolManager implements PoolManager {
         return enforced;
     }
 
+    private Map<String, Set<String>> getAllProvidedProductsFromPool(Collection<Pool> pools) {
+        Map<String, Set<String>> providedProductMap = new HashMap<>();
+
+        if (pools != null && !pools.isEmpty()) {
+            for (Pool pool : pools) {
+                if (pool != null && pool.getId() != null && pool.getProduct() != null &&
+                    pool.getProduct().getProvidedProducts() != null) {
+
+                    Set<String> listOfIds = pool.getProduct().getProvidedProducts().stream()
+                        .map(Product::getId).collect(Collectors.toSet());
+
+                    providedProductMap.put(pool.getId(), listOfIds);
+                }
+            }
+        }
+
+        return providedProductMap;
+    }
+
+    private Map<String, Set<String>> getAllDerivedProvidedProductsFromPool(Collection<Pool> pools) {
+        Map<String, Set<String>> providedProductMap = new HashMap<>();
+
+        if (pools != null && !pools.isEmpty()) {
+            for (Pool pool : pools) {
+                if (pool != null && pool.getId() != null && pool.getDerivedProduct() != null &&
+                    pool.getDerivedProduct().getProvidedProducts() != null) {
+
+                    Set<String> listOfIds = pool.getDerivedProduct().getProvidedProducts().stream()
+                        .map(Product::getId).collect(Collectors.toSet());
+
+                    providedProductMap.put(pool.getId(), listOfIds);
+                }
+            }
+        }
+
+        return providedProductMap;
+    }
+
     /**
      * Do not attempt to create subscriptions for products that
      * already have virt_only pools available to the guest
@@ -1441,8 +1422,7 @@ public class CandlepinPoolManager implements PoolManager {
 
         // Bulk fetch our provided product IDs so we're not hitting the DB several times
         // for this lookup.
-        Map<String, Set<String>> providedProductIds = this.poolCurator
-            .getProvidedProductIds(allOwnerPoolsForGuest);
+        Map<String, Set<String>> providedProductIds = getAllProvidedProductsFromPool(allOwnerPoolsForGuest);
 
         for (Pool pool : allOwnerPoolsForGuest) {
             if (pool.getProduct() != null && (pool.getProduct().hasAttribute(Product.Attributes.VIRT_ONLY) ||
@@ -1523,7 +1503,7 @@ public class CandlepinPoolManager implements PoolManager {
 
         // Bulk fetch our provided product IDs so we're not hitting the DB several times
         // for this lookup.
-        Map<String, Set<String>> providedProductIds = this.poolCurator.getProvidedProductIds(allOwnerPools);
+        Map<String, Set<String>> providedProductIds = getAllProvidedProductsFromPool(allOwnerPools);
 
         for (Pool pool : allOwnerPools) {
             boolean providesProduct = false;

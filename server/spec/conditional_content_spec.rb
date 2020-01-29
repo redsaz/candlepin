@@ -37,7 +37,7 @@ describe 'Conditional Content and Dependent Entitlements' do
     @cp.add_content_to_product(@owner['key'], @dependent_provided_product.id, @conditional_content_3.id)
 
     # Create a dependent pool, providing only the product containing our conditional content
-    @dependent_product = create_product(nil, nil, {:providedProducts => [@dependent_provided_product.id]})
+    @dependent_product = create_product(nil,nil, :providedProducts => [@dependent_provided_product.id])
     @dependent_pool = create_pool_and_subscription(@owner['key'], @dependent_product.id, 10, [@dependent_provided_product.id])
 
     owner_client = user_client(@owner, random_string('testowner'))
